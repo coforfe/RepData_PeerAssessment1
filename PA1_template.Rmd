@@ -1,20 +1,159 @@
-# Reproducible Research: Peer Assessment 1
+---
+title: "Reproducible Research - Peer Assessment 1"
+author: "Carlos Ortega"
+date: "Monday, August 11, 2014"
+output:
+  html_document:
+    number_sections: yes
+---
+
+***
+***
+
+# Loading and preprocessing the data
+## Get Data
+```{r, echo=TRUE}
+datIn <- read.csv("activity.csv", header=T)
+head(datIn)
+```
+
+***
+
+# What is mean total number of steps taken per day?
+## Histogram number of steps each day
+```{r, echo=TRUE, fig.width=9, fig.height=7}
+library(lattice)
+Histgr <- histogram(
+                     ~ steps | date
+                    ,data=datIn
+                    ,xlab="Number of Steps"
+                    ,ylab="Frequency"
+                    ,main="Number of Steps per day"
+                    ,par.strip.text=list(font=2, col="black",cex=0.75)
+                    ,as.table=TRUE
+                    )
+print(Histgr)
+```
+
+## Mean and median of steps per day, working only with complete.cases
+```{r, echo=TRUE}
+library(sqldf)
+DF <- datIn[ complete.cases(datIn),]
+DFres <- sqldf("select date, avg(steps) as Mean, median(steps) as Median from DF group by date order by date")
+head(DFres)
+```
+  
+***
+
+# What is the average daily activity pattern?
+## Average daily activity pattern
+```{r, echo=TRUE, fig.width=9, fig.height=7}
+DFactivity <- sqldf("select interval, avg(steps) as Mean from DF group by interval order by interval")
+head(DFactivity)
+```
+```{r, echo=TRUE, fig.width=9, fig.height=7}
+plot(
+     DFactivity$interval, DFactivity$Mean, type="l", col="blue", las=1
+    ,xlab="Interval", ylab="Mean number of steps", main="Average Steps per Interval",
+    ,font.axis=2, col.axis="blue", col.lab="red"
+     )
+grid()
+```
+
+## Interval with the maximum number of steps
+```{r, echo=TRUE}
+DFactivity$interval[which.max(DFactivity$Mean)]
+```
+
+***
+
+# Imputing missing values
+## Number of NAs
+```{r, echo=TRUE}
+numberNas <- dim(datIn)[1] - dim( datIn[complete.cases(datIn),])[1]
+numberNas
+```
 
 
-## Loading and preprocessing the data
+## Filling NAs  - Filled with average for the interval acrross all days
+```{r, echo=TRUE}
+theNAs <- datIn[is.na(datIn),]
+theNAsfilled <- merge(theNAs, DFactivity, by.x="interval", by.y="interval")
+noNAs <- theNAsfilled[,c(4,3,1)]
+names(noNAs) <- c('steps', 'date', 'interval')
+datInNew <- rbind.data.frame(DF, noNAs)
+```
+
+
+## Histogram number of steps taken each day
+```{r, echo=TRUE, fig.width=9, fig.height=7}
+library(lattice)
+HistgrNew <- histogram(
+  ~ steps | date
+  ,data=datInNew
+  ,xlab="Number of Steps"
+  ,ylab="Frequency"
+  ,main="Number of Steps per day (filled NAs)"
+  ,par.strip.text=list(font=2, col="black",cex=0.75)
+  ,as.table=TRUE
+)
+print(HistgrNew)
+```
+
+## Mean and median of steps per day, working only with complete.cases
+```{r, echo=TRUE}
+library(sqldf)
+DFresnoNA <- sqldf("select date, avg(steps) as Mean, median(steps) as Median from datInNew group by date order by date")
+head(DFresnoNA)
+```
+
+## Impact due to filled NAs
+```{r, echo=TRUE}
+DFscompa <- merge(DFres, DFresnoNA, by.x='date', by.y='date')
+summary(DFscompa$Mean.x)
+summary(DFscompa$Mean.y)
+all.equal(DFscompa$Mean.x, DFscompa$Mean.y)
+```
+**No difference. NAs affect only to complete days.**
+
+***
+
+# Are there differences in activity patterns between weekdays and weekends?
+## Difference activity between weekday and weekend
+```{r, echo=TRUE}
+library(lubridate)
+datInNew$wday <- wday(ymd(datInNew$date))
+datInNew$typeday <- ifelse(datInNew$wday==1 | datInNew$wday==6,'weekend','weekday')
+head(datInNew)
+```
+
+(Sunday = 1 / Saturday = 6)
+
+## Averaged by interval and typeday
+```{r, echo=TRUE}
+DFinterday <- sqldf("select avg(steps) as Mean, interval, typeday from datInNew group by interval, typeday")
+head(DFinterday)
+```
+
+## Plot steps between weekend - weekday
+```{r, echo=TRUE, fig.width=9, fig.height=7}
+library(lattice)
+xyweek <- xyplot(
+                  Mean ~ interval | typeday
+                 ,data=DFinterday
+                 ,type="l"
+                 ,xlab=list("Interval",font=2,col="blue",cex=1.3)
+                 ,ylab=list("# of steps",font=2,col="blue",cex=1.3)
+                 ,scales=list(cex=1, font=2, col="black")
+                 ,par.strip.text=list(font=2, col="black",cex=1.25)
+                 ,panel=function(x,y,...) {
+                   panel.grid(h=-1, v=-1, lty=2) 
+                   panel.xyplot(x,y,...) }
+                 ,layout=c(1,2) 
+                )
+print(xyweek)
+```
 
 
 
-## What is mean total number of steps taken per day?
 
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
